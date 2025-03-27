@@ -1,4 +1,5 @@
 plugins {
+  kotlin("jvm") version "2.1.20"
   application
 }
 
@@ -14,14 +15,12 @@ dependencies {
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
-java {
-  toolchain {
-    languageVersion = JavaLanguageVersion.of(21)
-  }
+kotlin {
+  jvmToolchain(21)
 }
 
 application {
-  mainClass = "org.example.App"
+  mainClass = "io.rzeszut.flyingducks.Main"
 }
 
 tasks.named<Test>("test") {
