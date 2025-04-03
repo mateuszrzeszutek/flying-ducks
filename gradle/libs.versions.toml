@@ -2,11 +2,18 @@
 # https://docs.gradle.org/current/userguide/platforms.html#sub::toml-dependencies-format
 
 [versions]
+arrow = "18.2.0"
+duckdb = "1.2.1"
 guava = "33.3.1-jre"
 junit-jupiter = "5.11.3"
-arrow = "18.2.0"
+protobuf = "3.25.6"
+slf4j = "2.0.17"
 
 [libraries]
+duckdb = { module = "org.duckdb:duckdb_jdbc", version.ref = "duckdb" }
+flight-sql = { module = "org.apache.arrow:flight-sql", version.ref = "arrow" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
-flight-sql = { module ="org.apache.arrow:flight-sql", version.ref = "arrow" }
+protobuf = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }

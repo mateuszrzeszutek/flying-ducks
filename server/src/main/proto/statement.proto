@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package io.rzeszut.flyingducks.proto;
+
+option java_multiple_files = true;
+
+message StatementHandleProto {
+  string sql = 1;
+}
+
+message PreparedStatementHandleProto {
+  string sql = 1;
+  int32 param_count = 2;
+}

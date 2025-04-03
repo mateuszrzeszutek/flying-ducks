@@ -7,3 +7,11 @@ build
 .idea
 
 .kotlin
+
+# vscode
+.vscode
+server/bin
+
+# project-specific
+database.duckdb
+flight-sql-jdbc-driver.jar
