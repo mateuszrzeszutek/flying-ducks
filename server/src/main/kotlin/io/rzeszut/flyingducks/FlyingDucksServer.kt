@@ -13,9 +13,14 @@ import org.apache.arrow.memory.BufferAllocator
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.types.pojo.Schema
 import org.intellij.lang.annotations.Language
+import org.slf4j.LoggerFactory
 
 class FlyingDucksServer(private val allocator: BufferAllocator, private val database: DuckDatabase) :
   FlightSqlProducer {
+
+  companion object {
+    private val log = LoggerFactory.getLogger(FlyingDucksServer::class.java)
+  }
 
   private val sqlInfoBuilder = SqlInfoBuilder()
     .withFlightSqlServerName("Flying Duck")
@@ -28,6 +33,8 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     descriptor: FlightDescriptor
   ): FlightInfo {
+    log.info("Server: getFlightInfoStatement({})", command)
+
     val handle = StatementHandle(command.query)
     database.prepare(handle.sql).use { statement ->
       val schema = JdbcToArrow.toSchema(statement.resultSetMetaData())
@@ -43,6 +50,8 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     descriptor: FlightDescriptor
   ): SchemaResult {
+    log.info("Server: getSchemaStatement({})", command)
+
     database.prepare(command.query).use { statement ->
       val schema = JdbcToArrow.toSchema(statement.resultSetMetaData())
       return SchemaResult(schema)
@@ -54,6 +63,8 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     listener: ServerStreamListener
   ) {
+    log.info("Server: getStreamStatement({})", ticket)
+
     val handle = StatementHandle.fromProto(ticket.statementHandle)
     streamQuery(handle.sql, listener)
   }
@@ -63,8 +74,12 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     flightStream: FlightStream,
     listener: StreamListener<PutResult>
-  ) = Runnable {
-    TODO("Not yet implemented")
+  ): Runnable {
+    log.info("Server: acceptPutStatement({})", command)
+
+    return Runnable {
+      TODO("Not yet implemented")
+    }
   }
 
   // PREPARED STATEMENT
@@ -74,6 +89,8 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     listener: StreamListener<Result>
   ) {
+    log.info("Server: createPreparedStatement({})", request)
+
     database.prepare(request.query).use { statement ->
       val handle = PreparedStatementHandle(request.query, statement.parameterMetaData().parameterCount)
       val datasetSchema = JdbcToArrow.toSchema(statement.resultSetMetaData())
@@ -94,8 +111,12 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     flightStream: FlightStream,
     listener: StreamListener<PutResult>
-  ) = Runnable {
-    TODO("Not yet implemented")
+  ): Runnable {
+    log.info("Server: acceptPutPreparedStatementQuery({})", command)
+
+    return Runnable {
+      TODO("Not yet implemented")
+    }
   }
 
   override fun getFlightInfoPreparedStatement(
@@ -103,6 +124,8 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     descriptor: FlightDescriptor
   ): FlightInfo {
+    log.info("Server: getFlightInfoPreparedStatement({})", command)
+
     TODO("Not yet implemented")
   }
 
@@ -111,6 +134,8 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     listener: ServerStreamListener
   ) {
+    log.info("Server: getStreamPreparedStatement({})", command)
+
     TODO("Not yet implemented")
   }
 
@@ -119,8 +144,12 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     flightStream: FlightStream,
     listener: StreamListener<PutResult>
-  ) = Runnable {
-    TODO("Not yet implemented")
+  ): Runnable {
+    log.info("Server: acceptPutPreparedStatementUpdate({})", command)
+
+    return Runnable {
+      TODO("Not yet implemented")
+    }
   }
 
   override fun closePreparedStatement(
@@ -128,7 +157,10 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     listener: StreamListener<Result>
   ) {
-    TODO("Not yet implemented")
+    log.info("Server: closePreparedStatement({})", request)
+
+    // nothing to do, since all statements are stateless
+    listener.onCompleted()
   }
 
   // SQL INFO
@@ -137,13 +169,19 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetSqlInfo,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo = createFlightInfo(Schemas.GET_SQL_INFO_SCHEMA, descriptor, command)
+  ): FlightInfo {
+    log.info("Server: getFlightInfoSqlInfo({})", command)
+    return createFlightInfo(Schemas.GET_SQL_INFO_SCHEMA, descriptor, command)
+  }
 
   override fun getStreamSqlInfo(
     command: FlightSql.CommandGetSqlInfo,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) = sqlInfoBuilder.send(command.infoList, listener)
+  ) {
+    log.info("Server: getStreamSqlInfo({})", command)
+    sqlInfoBuilder.send(command.infoList, listener)
+  }
 
   // TYPE INFO
 
@@ -151,13 +189,19 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetXdbcTypeInfo,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo = createFlightInfo(Schemas.GET_TYPE_INFO_SCHEMA, descriptor, command)
+  ): FlightInfo {
+    log.info("Server: getFlightInfoTypeInfo({})", command)
+    return createFlightInfo(Schemas.GET_TYPE_INFO_SCHEMA, descriptor, command)
+  }
 
   override fun getStreamTypeInfo(
     command: FlightSql.CommandGetXdbcTypeInfo,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) = emptyStream(Schemas.GET_TYPE_INFO_SCHEMA, listener)
+  ) {
+    log.info("Server: getStreamTypeInfo({})", command)
+    emptyStream(Schemas.GET_TYPE_INFO_SCHEMA, listener)
+  }
 
   // CATALOGS
 
@@ -165,12 +209,18 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetCatalogs,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo = createFlightInfo(Schemas.GET_CATALOGS_SCHEMA, descriptor, command)
+  ): FlightInfo {
+    log.info("Server: getFlightInfoCatalogs({})", command)
+    return createFlightInfo(Schemas.GET_CATALOGS_SCHEMA, descriptor, command)
+  }
 
   override fun getStreamCatalogs(
     callContext: CallContext,
     listener: ServerStreamListener
-  ) = streamQuery("select distinct catalog_name from information_schema.schemata;", listener)
+  ) {
+    log.info("Server: getStreamCatalogs()")
+    streamQuery("select distinct catalog_name from information_schema.schemata;", listener)
+  }
 
   // SCHEMAS
 
@@ -178,16 +228,22 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetDbSchemas,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo = createFlightInfo(Schemas.GET_SCHEMAS_SCHEMA, descriptor, command)
+  ): FlightInfo {
+    log.info("Server: getFlightInfoSchemas({})", command)
+    return createFlightInfo(Schemas.GET_SCHEMAS_SCHEMA, descriptor, command)
+  }
 
   override fun getStreamSchemas(
     command: FlightSql.CommandGetDbSchemas,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) = streamQuery(
-    "select distinct catalog_name, schema_name as db_schema_name from information_schema.schemata;",
-    listener
-  )
+  ) {
+    log.info("Server: getStreamSchemas({})", command)
+    streamQuery(
+      "select distinct catalog_name, schema_name as db_schema_name from information_schema.schemata;",
+      listener
+    )
+  }
 
   // TABLES
 
@@ -195,28 +251,39 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetTables,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo = createFlightInfo(
-    if (command.includeSchema) Schemas.GET_TABLES_SCHEMA else Schemas.GET_TABLES_SCHEMA_NO_SCHEMA,
-    descriptor,
-    command
-  )
+  ): FlightInfo {
+    log.info("Server: getFlightInfoTables({})", command)
+
+    return createFlightInfo(
+      if (command.includeSchema) Schemas.GET_TABLES_SCHEMA else Schemas.GET_TABLES_SCHEMA_NO_SCHEMA,
+      descriptor,
+      command
+    )
+  }
 
   override fun getStreamTables(
     command: FlightSql.CommandGetTables,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) = if (command.includeSchema) streamQuery(
-    """
-      select distinct
-             table_catalog as catalog_name,
-             table_schema as db_schema_name,
-             table_name,
-             table_type
-        from information_schema.tables;
-      """.trimIndent(),
-    listener
-  )
-  else TODO("column schema!")
+  ) {
+    log.info("Server: getStreamTables({})", command)
+
+    if (command.includeSchema) {
+      streamQuery(
+        """
+            select distinct
+                   table_catalog as catalog_name,
+                   table_schema as db_schema_name,
+                   table_name,
+                   table_type
+              from information_schema.tables;
+            """.trimIndent(),
+        listener
+      )
+    } else {
+      TODO("column schema!")
+    }
+  }
 
   // TABLE TYPES
 
@@ -224,12 +291,18 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetTableTypes,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo = createFlightInfo(Schemas.GET_TABLE_TYPES_SCHEMA, descriptor, command)
+  ): FlightInfo {
+    log.info("Server: getFlightInfoTableTypes({})", command)
+    return createFlightInfo(Schemas.GET_TABLE_TYPES_SCHEMA, descriptor, command)
+  }
 
   override fun getStreamTableTypes(
     callContext: CallContext,
     listener: ServerStreamListener
-  ) = streamQuery("select distinct table_type from information_schema.tables;", listener)
+  ) {
+    log.info("Server: getStreamTableTypes()")
+    streamQuery("select distinct table_type from information_schema.tables;", listener)
+  }
 
   // PRIMARY KEYS
 
@@ -237,13 +310,19 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetPrimaryKeys,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo = createFlightInfo(Schemas.GET_PRIMARY_KEYS_SCHEMA, descriptor, command)
+  ): FlightInfo {
+    log.info("Server: getFlightInfoPrimaryKeys({})", command)
+    return createFlightInfo(Schemas.GET_PRIMARY_KEYS_SCHEMA, descriptor, command)
+  }
 
   override fun getStreamPrimaryKeys(
     command: FlightSql.CommandGetPrimaryKeys,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) = emptyStream(Schemas.GET_PRIMARY_KEYS_SCHEMA, listener)
+  ) {
+    log.info("Server: getStreamPrimaryKeys({})", command)
+    emptyStream(Schemas.GET_PRIMARY_KEYS_SCHEMA, listener)
+  }
 
   // EXPORTED KEYS
 
@@ -251,13 +330,19 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetExportedKeys,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo = createFlightInfo(Schemas.GET_EXPORTED_KEYS_SCHEMA, descriptor, command)
+  ): FlightInfo {
+    log.info("Server: getFlightInfoExportedKeys({})", command)
+    return createFlightInfo(Schemas.GET_EXPORTED_KEYS_SCHEMA, descriptor, command)
+  }
 
   override fun getStreamExportedKeys(
     command: FlightSql.CommandGetExportedKeys,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) = emptyStream(Schemas.GET_EXPORTED_KEYS_SCHEMA, listener)
+  ) {
+    log.info("Server: getStreamExportedKeys({})", command)
+    emptyStream(Schemas.GET_EXPORTED_KEYS_SCHEMA, listener)
+  }
 
   // IMPORTED KEYS
 
@@ -265,13 +350,19 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetImportedKeys,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo = createFlightInfo(Schemas.GET_IMPORTED_KEYS_SCHEMA, descriptor, command)
+  ): FlightInfo {
+    log.info("Server: getFlightInfoImportedKeys({})", command)
+    return createFlightInfo(Schemas.GET_IMPORTED_KEYS_SCHEMA, descriptor, command)
+  }
 
   override fun getStreamImportedKeys(
     command: FlightSql.CommandGetImportedKeys,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) = emptyStream(Schemas.GET_IMPORTED_KEYS_SCHEMA, listener)
+  ) {
+    log.info("Server: getStreamImportedKeys({})", command)
+    emptyStream(Schemas.GET_IMPORTED_KEYS_SCHEMA, listener)
+  }
 
   // CROSS-REFERENCE
 
@@ -279,13 +370,19 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetCrossReference,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo = createFlightInfo(Schemas.GET_CROSS_REFERENCE_SCHEMA, descriptor, command)
+  ): FlightInfo {
+    log.info("Server: getFlightInfoCrossReference({})", command)
+    return createFlightInfo(Schemas.GET_CROSS_REFERENCE_SCHEMA, descriptor, command)
+  }
 
   override fun getStreamCrossReference(
     command: FlightSql.CommandGetCrossReference,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) = emptyStream(Schemas.GET_CROSS_REFERENCE_SCHEMA, listener)
+  ) {
+    log.info("Server: getStreamCrossReference({})", command)
+    emptyStream(Schemas.GET_CROSS_REFERENCE_SCHEMA, listener)
+  }
 
   // OTHER
 
@@ -294,6 +391,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     criteria: Criteria,
     listener: StreamListener<FlightInfo>
   ) {
+    log.info("Server: listFlights()")
     TODO("Not yet implemented")
   }
 

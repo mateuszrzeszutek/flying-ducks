@@ -10,7 +10,7 @@ import kotlin.system.exitProcess
 
 object Main {
 
-  private val log = LoggerFactory.getLogger(Main.javaClass)
+  private val log = LoggerFactory.getLogger(Main::class.java)
 
   @JvmStatic
   fun main(args: Array<String>) {

@@ -19,7 +19,7 @@ class StatementHandle(val sql: String) {
   }
 }
 
-class PreparedStatementHandle(val sql: String, val parameterCount: Int) {
+class PreparedStatementHandle(val sql: String, private val parameterCount: Int) {
 
   fun toProto(): ByteString = PreparedStatementHandleProto.newBuilder()
     .setSql(sql)
