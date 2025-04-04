@@ -13,5 +13,7 @@ build
 server/bin
 
 # project-specific
+data.csv
+data.csv.gz
 database.duckdb
 flight-sql-jdbc-driver.jar

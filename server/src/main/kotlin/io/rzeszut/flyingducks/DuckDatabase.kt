@@ -11,6 +11,7 @@ import java.sql.PreparedStatement
 import java.sql.ResultSetMetaData
 import javax.annotation.concurrent.NotThreadSafe
 
+// this is **NOT** thread-safe, we're using a single connection over and over again without any sort of synchronization
 @NotThreadSafe
 class DuckDatabase private constructor(private val connection: Connection) : AutoCloseable {
 
