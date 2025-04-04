@@ -33,6 +33,10 @@ protobuf {
 
 application {
   mainClass = "io.rzeszut.flyingducks.Main"
+
+  applicationDefaultJvmArgs += listOf(
+    "--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"
+  )
 }
 
 tasks.named<Test>("test") {

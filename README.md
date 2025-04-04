@@ -60,9 +60,10 @@ It uses DuckDB internally to run the queries on an example database file.
    Use the `Driver Files` input to find and add the file that you've just downloaded.
    In the `Class` combo box select the `org.apache.arrow.driver.jdbc.ArrowFlightJdbcDriver`.
    Save the newly created driver.
-2. Using the plus sign again, create a new `Data Source` choosing the driver you just saved.
-   Set the database URL to `jdbc:arrow-flight-sql://localhost:7777?useEncryption=false`.
-3. You should be able to inspect the database schema and query it now.
+2. Using the plus sign again, create a new `Data Source` choosing the driver you just saved. Set the following options:
+   - Authentication: No auth
+   - URL: `jdbc:arrow-flight-sql://localhost:7777?useEncryption=false`
+3. Save the data source -- you should be able to inspect the database schema and query it now.
 
 ### VSCode/VSCodium
 
