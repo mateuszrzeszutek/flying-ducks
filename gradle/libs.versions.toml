@@ -10,8 +10,9 @@ protobuf = "3.25.6"
 slf4j = "2.0.17"
 
 [libraries]
+arrow-c-data = { module = "org.apache.arrow:arrow-c-data", version.ref = "arrow" }
+arrow-flight-sql = { module = "org.apache.arrow:flight-sql", version.ref = "arrow" }
 duckdb = { module = "org.duckdb:duckdb_jdbc", version.ref = "duckdb" }
-flight-sql = { module = "org.apache.arrow:flight-sql", version.ref = "arrow" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 protobuf = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
