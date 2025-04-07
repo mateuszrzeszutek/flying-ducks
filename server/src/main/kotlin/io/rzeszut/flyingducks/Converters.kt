@@ -25,4 +25,12 @@ object JdbcToArrow {
     Types.TIMESTAMP -> ArrowType.Timestamp(TimeUnit.MILLISECOND, null)
     else -> TODO("support other types")
   }
+
+  fun sqlTypeToArrow(sqlType: String) = when (sqlType) {
+    "INTEGER", "BIGINT" -> ArrowType.Int(64, true)
+    "FLOAT", "DOUBLE" -> ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)
+    "VARCHAR" -> ArrowType.Utf8()
+    "TIMESTAMP" -> ArrowType.Timestamp(TimeUnit.MILLISECOND, null)
+    else -> TODO("support other types")
+  }
 }

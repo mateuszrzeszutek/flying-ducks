@@ -10,9 +10,7 @@ import org.apache.arrow.flight.sql.FlightSqlProducer.Schemas
 import org.apache.arrow.flight.sql.SqlInfoBuilder
 import org.apache.arrow.flight.sql.impl.FlightSql
 import org.apache.arrow.memory.BufferAllocator
-import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.types.pojo.Schema
-import org.intellij.lang.annotations.Language
 import org.slf4j.LoggerFactory
 
 class FlyingDucksServer(private val allocator: BufferAllocator, private val database: DuckDatabase) :
@@ -66,7 +64,11 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     log.info("Server: getStreamStatement({})", ticket)
 
     val handle = StatementHandle.fromProto(ticket.statementHandle)
-    streamQuery(handle.sql, listener)
+    database.prepare(handle.sql).use { statement ->
+      statement.executeQuery().use { result ->
+        result.stream(listener)
+      }
+    }
   }
 
   override fun acceptPutStatement(
@@ -200,7 +202,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamTypeInfo({})", command)
-    emptyStream(Schemas.GET_TYPE_INFO_SCHEMA, listener)
+    QueryResult.empty(allocator, Schemas.GET_TYPE_INFO_SCHEMA).stream(listener)
   }
 
   // CATALOGS
@@ -219,7 +221,9 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamCatalogs()")
-    streamQuery("select distinct catalog_name from information_schema.schemata;", listener)
+    database.metadata().getCatalogs().use { result ->
+      result.stream(listener)
+    }
   }
 
   // SCHEMAS
@@ -239,10 +243,12 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamSchemas({})", command)
-    streamQuery(
-      "select distinct catalog_name, schema_name as db_schema_name from information_schema.schemata;",
-      listener
-    )
+
+    val catalog = if (command.hasCatalog()) command.catalog else null
+    val schemaNamePattern = if (command.hasDbSchemaFilterPattern()) command.dbSchemaFilterPattern else null
+    database.metadata().getSchemas(catalog, schemaNamePattern).use { result ->
+      result.stream(listener)
+    }
   }
 
   // TABLES
@@ -268,20 +274,16 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
   ) {
     log.info("Server: getStreamTables({})", command)
 
-    if (command.includeSchema) {
-      streamQuery(
-        """
-            select distinct
-                   table_catalog as catalog_name,
-                   table_schema as db_schema_name,
-                   table_name,
-                   table_type
-              from information_schema.tables;
-            """.trimIndent(),
-        listener
-      )
-    } else {
-      TODO("column schema!")
+    val catalog = if (command.hasCatalog()) command.catalog else null
+    val schemaNamePattern = if (command.hasDbSchemaFilterPattern()) command.dbSchemaFilterPattern else null
+    val tableNamePattern = if (command.hasTableNameFilterPattern()) command.tableNameFilterPattern else null
+    val tableTypes: List<String> = command.tableTypesList
+    database.metadata().getTables(catalog, schemaNamePattern, tableNamePattern, tableTypes).use { result ->
+      if (command.includeSchema) {
+        database.metadata().addTableSchema(result).stream(listener)
+      } else {
+        result.stream(listener)
+      }
     }
   }
 
@@ -301,7 +303,9 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamTableTypes()")
-    streamQuery("select distinct table_type from information_schema.tables;", listener)
+    database.metadata().getTableTypes().use { result ->
+      result.stream(listener)
+    }
   }
 
   // PRIMARY KEYS
@@ -321,7 +325,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamPrimaryKeys({})", command)
-    emptyStream(Schemas.GET_PRIMARY_KEYS_SCHEMA, listener)
+    QueryResult.empty(allocator, Schemas.GET_PRIMARY_KEYS_SCHEMA).stream(listener)
   }
 
   // EXPORTED KEYS
@@ -341,7 +345,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamExportedKeys({})", command)
-    emptyStream(Schemas.GET_EXPORTED_KEYS_SCHEMA, listener)
+    QueryResult.empty(allocator, Schemas.GET_EXPORTED_KEYS_SCHEMA).stream(listener)
   }
 
   // IMPORTED KEYS
@@ -361,7 +365,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamImportedKeys({})", command)
-    emptyStream(Schemas.GET_IMPORTED_KEYS_SCHEMA, listener)
+    QueryResult.empty(allocator, Schemas.GET_IMPORTED_KEYS_SCHEMA).stream(listener)
   }
 
   // CROSS-REFERENCE
@@ -381,7 +385,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamCrossReference({})", command)
-    emptyStream(Schemas.GET_CROSS_REFERENCE_SCHEMA, listener)
+    QueryResult.empty(allocator, Schemas.GET_CROSS_REFERENCE_SCHEMA).stream(listener)
   }
 
   // OTHER
@@ -401,25 +405,5 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
   private fun createFlightInfo(schema: Schema, descriptor: FlightDescriptor, message: Message): FlightInfo {
     val ticket = Ticket(Any.pack(message).toByteArray())
     return FlightInfo.builder(schema, descriptor, listOf(FlightEndpoint(ticket))).build()
-  }
-
-  private fun emptyStream(schema: Schema, listener: ServerStreamListener) {
-    VectorSchemaRoot.create(schema, allocator).use { root ->
-      listener.start(root)
-      listener.putNext()
-      listener.completed()
-    }
-  }
-
-  private fun streamQuery(@Language("SQL") sql: String, listener: ServerStreamListener) {
-    database.prepare(sql).use { statement ->
-      statement.executeQuery(allocator).use { reader ->
-        listener.start(reader.vectorSchemaRoot)
-        while (reader.loadNextBatch()) {
-          listener.putNext()
-        }
-        listener.completed()
-      }
-    }
   }
 }

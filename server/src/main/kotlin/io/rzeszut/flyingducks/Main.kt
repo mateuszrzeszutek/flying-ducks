@@ -24,8 +24,8 @@ object Main {
       exitProcess(1)
     }
 
-    DuckDatabase.create(duckDbFilePath).use { database ->
-      RootAllocator().use { allocator ->
+    RootAllocator().use { allocator ->
+      DuckDatabase.create(duckDbFilePath, allocator).use { database ->
         val location = Location.forGrpcInsecure("0.0.0.0", 7777)
         val serverImpl = FlyingDucksServer(allocator, database)
         FlightServer.builder(allocator, location, serverImpl).build().use { server ->

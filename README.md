@@ -74,3 +74,15 @@ It uses DuckDB internally to run the queries on an example database file.
    - Driver Path: `<path-to-the-flying-ducks-project>/flight-sql-jdbc-driver.jar`
    - Dialect: `PostgreSQL (Compatible)`
 4. Click `Save` -- you should be able to inspect the database schema and query it now.
+
+# TODO list
+
+- [ ] sql info to be compatible with intellij
+- [ ] prepared statements
+- [ ] prepared statement parameters
+- [x] schemas filters
+- [x] tables filters
+- [x] columns schema discovery
+- [ ] updates
+- [ ] jdbc driver integration test
+- [ ] adbc driver integration test
