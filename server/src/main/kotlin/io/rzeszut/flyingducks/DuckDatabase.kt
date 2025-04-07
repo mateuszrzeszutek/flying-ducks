@@ -120,7 +120,8 @@ class DuckMetadata(private val database: DuckDatabase, private val allocator: Bu
     tableTypes: List<String>
   ): QueryResult {
     val query = StringBuilder()
-    query.append("SELECT DISTINCT catalog_name, schema_name AS db_schema_name, table_name, table_type")
+    query.append("SELECT DISTINCT")
+    query.append(" table_catalog AS catalog_name, table_schema AS db_schema_name, table_name, table_type")
     query.append(" FROM information_schema.tables")
 
     if (catalog != null || schemaNamePattern != null || tableNamePattern != null || tableTypes.isNotEmpty()) {
@@ -130,9 +131,9 @@ class DuckMetadata(private val database: DuckDatabase, private val allocator: Bu
       if (catalog != null) {
         andNeeded = true
         if (catalog.isEmpty()) {
-          query.append(" catalog_name IS NULL")
+          query.append(" table_catalog IS NULL")
         } else {
-          query.append(" catalog_name = ?")
+          query.append(" table_catalog = ?")
         }
       }
       if (schemaNamePattern != null) {
@@ -141,9 +142,9 @@ class DuckMetadata(private val database: DuckDatabase, private val allocator: Bu
         }
         andNeeded = true
         if (schemaNamePattern.isEmpty()) {
-          query.append(" schema_name IS NULL")
+          query.append(" table_schema IS NULL")
         } else {
-          query.append(" schema_name LIKE ?")
+          query.append(" table_schema LIKE ?")
         }
       }
       if (tableNamePattern != null) {
