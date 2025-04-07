@@ -11,4 +11,5 @@ message StatementHandleProto {
 message PreparedStatementHandleProto {
   string sql = 1;
   int32 param_count = 2;
+  repeated string param_value = 3;
 }

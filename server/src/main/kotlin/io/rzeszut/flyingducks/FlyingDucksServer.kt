@@ -10,6 +10,7 @@ import org.apache.arrow.flight.sql.FlightSqlProducer.Schemas
 import org.apache.arrow.flight.sql.SqlInfoBuilder
 import org.apache.arrow.flight.sql.impl.FlightSql
 import org.apache.arrow.memory.BufferAllocator
+import org.apache.arrow.vector.VarCharVector
 import org.apache.arrow.vector.types.pojo.Schema
 import org.slf4j.LoggerFactory
 
@@ -66,7 +67,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     val handle = StatementHandle.fromProto(ticket.statementHandle)
     database.prepare(handle.sql).use { statement ->
       statement.executeQuery().use { result ->
-        result.stream(listener)
+        result.send(listener)
       }
     }
   }
@@ -117,7 +118,40 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     log.info("Server: acceptPutPreparedStatementQuery({})", command)
 
     return Runnable {
-      TODO("Not yet implemented")
+      val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
+
+      if (!flightStream.next()) {
+        if (handle.parameterCount != 0) {
+          listener.onError(CallStatus.INTERNAL
+            .withDescription("Expected ${handle.parameterCount} params, got none")
+            .toRuntimeException())
+        }
+        listener.onCompleted()
+        return@Runnable
+      }
+
+      val root = flightStream.root
+      if (root.rowCount != 1) {
+        listener.onError(CallStatus.INTERNAL
+          .withDescription("Only a single set of parameters was expected")
+          .toRuntimeException())
+        listener.onCompleted()
+        return@Runnable
+      }
+
+      val paramValues = root.fieldVectors.map { it as VarCharVector }
+        .map { String(it.get(0), Charsets.UTF_8) }
+        .toList()
+      val newHandle = handle.copy(parameterValues = paramValues)
+
+      val result = FlightSql.DoPutPreparedStatementResult.newBuilder()
+        .setPreparedStatementHandle(newHandle.toProto())
+        .build()
+      allocator.buffer(result.serializedSize.toLong()).use { buffer ->
+        buffer.writeBytes(result.toByteArray())
+        listener.onNext(PutResult.metadata(buffer))
+      }
+      listener.onCompleted()
     }
   }
 
@@ -128,7 +162,14 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
   ): FlightInfo {
     log.info("Server: getFlightInfoPreparedStatement({})", command)
 
-    TODO("Not yet implemented")
+    val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
+    database.prepare(handle.sql).use { statement ->
+      val schema = JdbcToArrow.toSchema(statement.resultSetMetaData())
+      val ticket = FlightSql.CommandPreparedStatementQuery.newBuilder()
+        .setPreparedStatementHandle(handle.toProto())
+        .build()
+      return createFlightInfo(schema, descriptor, ticket)
+    }
   }
 
   override fun getStreamPreparedStatement(
@@ -138,7 +179,15 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
   ) {
     log.info("Server: getStreamPreparedStatement({})", command)
 
-    TODO("Not yet implemented")
+    val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
+    database.prepare(handle.sql).use { statement ->
+      for ((index, value) in handle.parameterValues.withIndex()) {
+        statement.setParameter(index + 1, value)
+      }
+      statement.executeQuery().use { result ->
+        result.send(listener)
+      }
+    }
   }
 
   override fun acceptPutPreparedStatementUpdate(
@@ -202,7 +251,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamTypeInfo({})", command)
-    QueryResult.empty(allocator, Schemas.GET_TYPE_INFO_SCHEMA).stream(listener)
+    QueryResult.empty(allocator, Schemas.GET_TYPE_INFO_SCHEMA).send(listener)
   }
 
   // CATALOGS
@@ -222,7 +271,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
   ) {
     log.info("Server: getStreamCatalogs()")
     database.metadata().getCatalogs().use { result ->
-      result.stream(listener)
+      result.send(listener)
     }
   }
 
@@ -246,8 +295,9 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
 
     val catalog = if (command.hasCatalog()) command.catalog else null
     val schemaNamePattern = if (command.hasDbSchemaFilterPattern()) command.dbSchemaFilterPattern else null
+
     database.metadata().getSchemas(catalog, schemaNamePattern).use { result ->
-      result.stream(listener)
+      result.send(listener)
     }
   }
 
@@ -278,11 +328,12 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     val schemaNamePattern = if (command.hasDbSchemaFilterPattern()) command.dbSchemaFilterPattern else null
     val tableNamePattern = if (command.hasTableNameFilterPattern()) command.tableNameFilterPattern else null
     val tableTypes: List<String> = command.tableTypesList
+
     database.metadata().getTables(catalog, schemaNamePattern, tableNamePattern, tableTypes).use { result ->
       if (command.includeSchema) {
-        database.metadata().addTableSchema(result).stream(listener)
+        database.metadata().addTableSchema(result).send(listener)
       } else {
-        result.stream(listener)
+        result.send(listener)
       }
     }
   }
@@ -304,7 +355,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
   ) {
     log.info("Server: getStreamTableTypes()")
     database.metadata().getTableTypes().use { result ->
-      result.stream(listener)
+      result.send(listener)
     }
   }
 
@@ -325,7 +376,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamPrimaryKeys({})", command)
-    QueryResult.empty(allocator, Schemas.GET_PRIMARY_KEYS_SCHEMA).stream(listener)
+    QueryResult.empty(allocator, Schemas.GET_PRIMARY_KEYS_SCHEMA).send(listener)
   }
 
   // EXPORTED KEYS
@@ -345,7 +396,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamExportedKeys({})", command)
-    QueryResult.empty(allocator, Schemas.GET_EXPORTED_KEYS_SCHEMA).stream(listener)
+    QueryResult.empty(allocator, Schemas.GET_EXPORTED_KEYS_SCHEMA).send(listener)
   }
 
   // IMPORTED KEYS
@@ -365,7 +416,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamImportedKeys({})", command)
-    QueryResult.empty(allocator, Schemas.GET_IMPORTED_KEYS_SCHEMA).stream(listener)
+    QueryResult.empty(allocator, Schemas.GET_IMPORTED_KEYS_SCHEMA).send(listener)
   }
 
   // CROSS-REFERENCE
@@ -385,7 +436,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: ServerStreamListener
   ) {
     log.info("Server: getStreamCrossReference({})", command)
-    QueryResult.empty(allocator, Schemas.GET_CROSS_REFERENCE_SCHEMA).stream(listener)
+    QueryResult.empty(allocator, Schemas.GET_CROSS_REFERENCE_SCHEMA).send(listener)
   }
 
   // OTHER

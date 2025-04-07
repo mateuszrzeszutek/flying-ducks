@@ -16,14 +16,14 @@ sealed interface QueryResult : AutoCloseable {
     fun forVector(vectorSchemaRoot: VectorSchemaRoot): QueryResult = VectorResult(vectorSchemaRoot)
   }
 
-  fun stream(listener: ServerStreamListener)
+  fun send(listener: ServerStreamListener)
 
   fun consume(consumer: (VectorSchemaRoot) -> Unit)
 }
 
 private data class EmptyResult(val allocator: BufferAllocator, val schema: Schema) : QueryResult {
 
-  override fun stream(listener: ServerStreamListener) {
+  override fun send(listener: ServerStreamListener) {
     VectorSchemaRoot.create(schema, allocator).use { root ->
       listener.start(root)
       listener.putNext()
@@ -39,7 +39,7 @@ private data class EmptyResult(val allocator: BufferAllocator, val schema: Schem
 
 private data class ArrowReaderResult(val reader: ArrowReader) : QueryResult {
 
-  override fun stream(listener: ServerStreamListener) {
+  override fun send(listener: ServerStreamListener) {
     listener.start(reader.vectorSchemaRoot)
     while (reader.loadNextBatch()) {
       listener.putNext()
@@ -60,7 +60,7 @@ private data class ArrowReaderResult(val reader: ArrowReader) : QueryResult {
 
 private data class VectorResult(val root: VectorSchemaRoot) : QueryResult {
 
-  override fun stream(listener: ServerStreamListener) {
+  override fun send(listener: ServerStreamListener) {
     listener.start(root)
     listener.putNext()
     listener.completed()

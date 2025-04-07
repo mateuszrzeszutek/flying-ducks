@@ -7,7 +7,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType
 import org.apache.arrow.vector.types.pojo.Field
 import org.apache.arrow.vector.types.pojo.Schema
 
-class StatementHandle(val sql: String) {
+data class StatementHandle(val sql: String) {
 
   fun toProto(): ByteString = StatementHandleProto.newBuilder()
     .setSql(sql)
@@ -19,23 +19,29 @@ class StatementHandle(val sql: String) {
   }
 }
 
-class PreparedStatementHandle(val sql: String, private val parameterCount: Int) {
+data class PreparedStatementHandle(
+  val sql: String,
+  val parameterCount: Int,
+  val parameterValues: List<String> = listOf()
+) {
 
   fun toProto(): ByteString = PreparedStatementHandleProto.newBuilder()
     .setSql(sql)
     .setParamCount(parameterCount)
+    .addAllParamValue(parameterValues)
     .build()
     .toByteString()
 
   fun generateParameterSchema(): Schema {
-    val fields = List(parameterCount) { Field.notNullable(null, ArrowType.Null()) }
+    // all params are strings, why not
+    val fields = List(parameterCount) { Field.notNullable(null, ArrowType.Utf8()) }
     return Schema(fields)
   }
 
   companion object {
     fun fromProto(proto: ByteString): PreparedStatementHandle {
       val parsedProto = PreparedStatementHandleProto.parseFrom(proto)
-      return PreparedStatementHandle(parsedProto.sql, parsedProto.paramCount)
+      return PreparedStatementHandle(parsedProto.sql, parsedProto.paramCount, parsedProto.paramValueList)
     }
   }
 }

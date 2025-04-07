@@ -253,10 +253,10 @@ class DuckMetadata(private val database: DuckDatabase, private val allocator: Bu
 private data class TableDef(val catalog: String, val schema: String, val table: String, val tableType: String)
 
 private fun VectorSchemaRoot.getString(fieldName: String, index: Int) =
-  String((getVector(fieldName) as VarCharVector)[index])
+  String((getVector(fieldName) as VarCharVector)[index], Charsets.UTF_8)
 
 private fun VectorSchemaRoot.setString(fieldName: String, index: Int, value: String) =
-  (getVector(fieldName) as VarCharVector).setSafe(index, value.toByteArray(StandardCharsets.UTF_8))
+  (getVector(fieldName) as VarCharVector).setSafe(index, value.toByteArray(Charsets.UTF_8))
 
 private fun VectorSchemaRoot.setSchema(fieldName: String, index: Int, value: Schema) =
   (getVector(fieldName) as VarBinaryVector).setSafe(index, value.serializeAsMessage())
