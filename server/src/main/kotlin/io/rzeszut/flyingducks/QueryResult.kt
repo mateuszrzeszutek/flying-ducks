@@ -42,6 +42,7 @@ private data class ArrowReaderResult(val reader: ArrowReader) : QueryResult {
   override fun send(listener: ServerStreamListener) {
     listener.start(reader.vectorSchemaRoot)
     while (reader.loadNextBatch()) {
+      reader.vectorSchemaRoot.debugDump()
       listener.putNext()
     }
     listener.completed()
@@ -62,6 +63,7 @@ private data class VectorResult(val root: VectorSchemaRoot) : QueryResult {
 
   override fun send(listener: ServerStreamListener) {
     listener.start(root)
+    root.debugDump()
     listener.putNext()
     listener.completed()
   }

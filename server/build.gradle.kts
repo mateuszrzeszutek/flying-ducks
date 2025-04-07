@@ -10,10 +10,9 @@ repositories {
 }
 
 dependencies {
-  implementation(libs.duckdb)
   implementation(libs.arrow.c.data)
   implementation(libs.arrow.flight.sql)
-  implementation(libs.guava)
+  implementation(libs.duckdb)
   implementation(libs.protobuf)
   implementation(libs.slf4j.api)
   runtimeOnly(libs.slf4j.simple)

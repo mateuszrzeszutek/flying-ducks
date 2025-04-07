@@ -10,7 +10,6 @@ import org.apache.arrow.flight.sql.FlightSqlProducer.Schemas
 import org.apache.arrow.flight.sql.SqlInfoBuilder
 import org.apache.arrow.flight.sql.impl.FlightSql
 import org.apache.arrow.memory.BufferAllocator
-import org.apache.arrow.vector.VarCharVector
 import org.apache.arrow.vector.types.pojo.Schema
 import org.slf4j.LoggerFactory
 
@@ -24,6 +23,16 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
   private val sqlInfoBuilder = SqlInfoBuilder()
     .withFlightSqlServerName("Flying Duck")
     .withFlightSqlServerVersion("0.0.1")
+    .withFlightSqlServerCancel(false)
+    .withFlightSqlServerSql(true)
+    .withFlightSqlServerSubstrait(true)
+    .withFlightSqlServerTransaction(FlightSql.SqlSupportedTransaction.SQL_SUPPORTED_TRANSACTION_NONE)
+    .withSqlCatalogAtStart(false)
+    .withSqlIdentifierCase(FlightSql.SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_CASE_INSENSITIVE)
+    .withSqlIdentifierQuoteChar("\"")
+    .withSqlQuotedIdentifierCase(FlightSql.SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_CASE_INSENSITIVE)
+    .withSqlSearchStringEscape("\\")
+    .withSqlTransactionsSupported(false)
 
   // STATEMENT
 
@@ -81,7 +90,13 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     log.info("Server: acceptPutStatement({})", command)
 
     return Runnable {
-      TODO("Not yet implemented")
+      val updatedCount = database.prepare(command.query).use { it.executeUpdate() }
+
+      FlightSql.DoPutUpdateResult.newBuilder()
+        .setRecordCount(updatedCount.toLong())
+        .build()
+        .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
+      listener.onCompleted()
     }
   }
 
@@ -122,9 +137,11 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
 
       if (!flightStream.next()) {
         if (handle.parameterCount != 0) {
-          listener.onError(CallStatus.INTERNAL
-            .withDescription("Expected ${handle.parameterCount} params, got none")
-            .toRuntimeException())
+          listener.onError(
+            CallStatus.INTERNAL
+              .withDescription("Expected ${handle.parameterCount} params, got none")
+              .toRuntimeException()
+          )
         }
         listener.onCompleted()
         return@Runnable
@@ -132,25 +149,21 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
 
       val root = flightStream.root
       if (root.rowCount != 1) {
-        listener.onError(CallStatus.INTERNAL
-          .withDescription("Only a single set of parameters was expected")
-          .toRuntimeException())
+        listener.onError(
+          CallStatus.INTERNAL
+            .withDescription("Only a single set of parameters was expected")
+            .toRuntimeException()
+        )
         listener.onCompleted()
         return@Runnable
       }
 
-      val paramValues = root.fieldVectors.map { it as VarCharVector }
-        .map { String(it.get(0), Charsets.UTF_8) }
-        .toList()
-      val newHandle = handle.copy(parameterValues = paramValues)
+      val newHandle = handle.copy(parameterValues = root.toParamList())
 
-      val result = FlightSql.DoPutPreparedStatementResult.newBuilder()
+      FlightSql.DoPutPreparedStatementResult.newBuilder()
         .setPreparedStatementHandle(newHandle.toProto())
         .build()
-      allocator.buffer(result.serializedSize.toLong()).use { buffer ->
-        buffer.writeBytes(result.toByteArray())
-        listener.onNext(PutResult.metadata(buffer))
-      }
+        .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
       listener.onCompleted()
     }
   }
@@ -181,12 +194,11 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
 
     val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
     database.prepare(handle.sql).use { statement ->
-      for ((index, value) in handle.parameterValues.withIndex()) {
-        statement.setParameter(index + 1, value)
-      }
-      statement.executeQuery().use { result ->
-        result.send(listener)
-      }
+      statement
+        .setParameters(handle.parameterValues)
+        .executeQuery().use { result ->
+          result.send(listener)
+        }
     }
   }
 
@@ -199,7 +211,19 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     log.info("Server: acceptPutPreparedStatementUpdate({})", command)
 
     return Runnable {
-      TODO("Not yet implemented")
+      val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
+      val updatedCount = database.prepare(handle.sql).use { statement ->
+        while (flightStream.next()) {
+          statement.setParameters(flightStream.root.toParamList()).addBatch()
+        }
+        statement.executeBatch()
+      }.sum()
+
+      FlightSql.DoPutUpdateResult.newBuilder()
+        .setRecordCount(updatedCount.toLong())
+        .build()
+        .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
+      listener.onCompleted()
     }
   }
 
@@ -447,7 +471,12 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     listener: StreamListener<FlightInfo>
   ) {
     log.info("Server: listFlights()")
-    TODO("Not yet implemented")
+    listener.onError(
+      CallStatus.UNIMPLEMENTED
+        .withDescription("Listing in-flight operations is not supported")
+        .toRuntimeException()
+    )
+    listener.onCompleted()
   }
 
   override fun close() {

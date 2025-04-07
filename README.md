@@ -77,12 +77,5 @@ It uses DuckDB internally to run the queries on an example database file.
 
 # TODO list
 
-- [ ] sql info to be compatible with intellij
-- [x] prepared statements
-- [x] prepared statement parameters
-- [x] schemas filters
-- [x] tables filters
-- [x] columns schema discovery
-- [ ] updates
 - [ ] jdbc driver integration test
 - [ ] adbc driver integration test

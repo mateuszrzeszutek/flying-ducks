@@ -3,15 +3,11 @@ package io.rzeszut.flyingducks
 import io.rzeszut.flyingducks.JdbcToArrow.sqlTypeToArrow
 import org.apache.arrow.flight.sql.FlightSqlProducer.Schemas
 import org.apache.arrow.memory.BufferAllocator
-import org.apache.arrow.vector.BitVector
-import org.apache.arrow.vector.VarBinaryVector
-import org.apache.arrow.vector.VarCharVector
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowReader
 import org.apache.arrow.vector.types.pojo.Field
 import org.apache.arrow.vector.types.pojo.Schema
 import org.duckdb.DuckDBResultSet
-import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import java.sql.*
 import javax.annotation.concurrent.NotThreadSafe
@@ -45,6 +41,15 @@ class DuckStatement(private val preparedStatement: PreparedStatement, private va
     return QueryResult.forReader(resultSet.arrowExportStream(allocator, 1024) as ArrowReader)
   }
 
+  fun executeUpdate(): Int = preparedStatement.executeUpdate()
+
+  fun executeBatch(): IntArray = preparedStatement.executeBatch()
+
+  fun addBatch(): DuckStatement {
+    preparedStatement.addBatch()
+    return this
+  }
+
   fun closeOnQueryCompletion(): DuckStatement {
     preparedStatement.closeOnCompletion()
     return this
@@ -52,6 +57,13 @@ class DuckStatement(private val preparedStatement: PreparedStatement, private va
 
   fun setParameter(index: Int, value: Any): DuckStatement {
     preparedStatement.setObject(index, value)
+    return this
+  }
+
+  fun setParameters(params: List<Any>): DuckStatement {
+    for ((index, value) in params.withIndex()) {
+      setParameter(index + 1, value)
+    }
     return this
   }
 
@@ -251,12 +263,3 @@ class DuckMetadata(private val database: DuckDatabase, private val allocator: Bu
 }
 
 private data class TableDef(val catalog: String, val schema: String, val table: String, val tableType: String)
-
-private fun VectorSchemaRoot.getString(fieldName: String, index: Int) =
-  String((getVector(fieldName) as VarCharVector)[index], Charsets.UTF_8)
-
-private fun VectorSchemaRoot.setString(fieldName: String, index: Int, value: String) =
-  (getVector(fieldName) as VarCharVector).setSafe(index, value.toByteArray(Charsets.UTF_8))
-
-private fun VectorSchemaRoot.setSchema(fieldName: String, index: Int, value: Schema) =
-  (getVector(fieldName) as VarBinaryVector).setSafe(index, value.serializeAsMessage())
