@@ -230,7 +230,7 @@ class DuckMetadata(private val database: DuckDatabase, private val allocator: Bu
       .executeQuery().use {
         it.consume { batch ->
           for (i in 0..<batch.rowCount) {
-            val nullable = batch.getBoolean("is_nullable", i)
+            val nullable = batch.getString("is_nullable", i) == "YES"
             val name = batch.getString("column_name", i)
             val type = sqlTypeToArrow(batch.getString("data_type", i))
             fields.add(
@@ -251,9 +251,6 @@ class DuckMetadata(private val database: DuckDatabase, private val allocator: Bu
 }
 
 private data class TableDef(val catalog: String, val schema: String, val table: String, val tableType: String)
-
-private fun VectorSchemaRoot.getBoolean(fieldName: String, index: Int) =
-  (getVector(fieldName) as BitVector).get(index) != 0
 
 private fun VectorSchemaRoot.getString(fieldName: String, index: Int) =
   String((getVector(fieldName) as VarCharVector)[index])
