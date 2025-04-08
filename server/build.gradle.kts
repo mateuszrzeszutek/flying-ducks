@@ -18,6 +18,7 @@ dependencies {
   runtimeOnly(libs.slf4j.simple)
 
   testImplementation(libs.junit.jupiter)
+  testImplementation(kotlin("test"))
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

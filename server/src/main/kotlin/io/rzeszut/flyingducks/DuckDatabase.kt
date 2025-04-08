@@ -3,6 +3,7 @@ package io.rzeszut.flyingducks
 import io.rzeszut.flyingducks.JdbcToArrow.sqlTypeToArrow
 import org.apache.arrow.flight.sql.FlightSqlProducer.Schemas
 import org.apache.arrow.memory.BufferAllocator
+import org.apache.arrow.vector.IntVector
 import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.ipc.ArrowReader
 import org.apache.arrow.vector.types.pojo.Field
@@ -37,8 +38,17 @@ class DuckStatement(private val preparedStatement: PreparedStatement, private va
   AutoCloseable {
 
   fun executeQuery(): QueryResult {
-    val resultSet = preparedStatement.executeQuery() as DuckDBResultSet
-    return QueryResult.forReader(resultSet.arrowExportStream(allocator, 1024) as ArrowReader)
+    return if (preparedStatement.execute()) {
+      val resultSet = preparedStatement.resultSet as DuckDBResultSet
+      QueryResult.forReader(resultSet.arrowExportStream(allocator, 1024) as ArrowReader)
+    } else {
+      // Intellij executes DML operations using getFlightInfo/doGet, this prevents errors being thrown during demo
+      val updates = IntVector("updates", allocator)
+      updates.setSafe(0, preparedStatement.updateCount)
+      val root = VectorSchemaRoot.of(updates)
+      root.rowCount = 1
+      QueryResult.forVector(root)
+    }
   }
 
   fun executeUpdate(): Int = preparedStatement.executeUpdate()
@@ -201,13 +211,11 @@ class DuckMetadata(private val database: DuckDatabase, private val allocator: Bu
     val tables = mutableListOf<TableDef>()
     tablesResult.consume { batch ->
       for (i in 0..<batch.rowCount) {
-        tables.add(
-          TableDef(
-            batch.getString("catalog_name", i),
-            batch.getString("db_schema_name", i),
-            batch.getString("table_name", i),
-            batch.getString("table_type", i)
-          )
+        tables += TableDef(
+          batch.getString("catalog_name", i),
+          batch.getString("db_schema_name", i),
+          batch.getString("table_name", i),
+          batch.getString("table_type", i)
         )
       }
     }
@@ -245,10 +253,7 @@ class DuckMetadata(private val database: DuckDatabase, private val allocator: Bu
             val nullable = batch.getString("is_nullable", i) == "YES"
             val name = batch.getString("column_name", i)
             val type = sqlTypeToArrow(batch.getString("data_type", i))
-            fields.add(
-              if (nullable) Field.nullable(name, type)
-              else Field.notNullable(name, type)
-            )
+            fields += if (nullable) Field.nullable(name, type) else Field.notNullable(name, type)
           }
         }
       }
