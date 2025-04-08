@@ -40,7 +40,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandStatementQuery,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoStatement({})", command)
 
     val handle = StatementHandle(command.query)
@@ -49,7 +49,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
       val ticket = FlightSql.TicketStatementQuery.newBuilder()
         .setStatementHandle(handle.toProto())
         .build()
-      return createFlightInfo(schema, descriptor, ticket)
+      createFlightInfo(schema, descriptor, ticket)
     }
   }
 
@@ -57,12 +57,12 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandStatementQuery,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): SchemaResult {
+  ): SchemaResult = ErrorHandler.wrap {
     log.info("Server: getSchemaStatement({})", command)
 
     database.prepare(command.query).use { statement ->
       val schema = JdbcToArrow.toSchema(statement.resultSetMetaData())
-      return SchemaResult(schema)
+      SchemaResult(schema)
     }
   }
 
@@ -70,7 +70,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     ticket: FlightSql.TicketStatementQuery,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamStatement({})", ticket)
 
     val handle = StatementHandle.fromProto(ticket.statementHandle)
@@ -90,13 +90,15 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     log.info("Server: acceptPutStatement({})", command)
 
     return Runnable {
-      val updatedCount = database.prepare(command.query).use { it.executeUpdate() }
+      ErrorHandler.wrap(listener) {
+        val updatedCount = database.prepare(command.query).use { it.executeUpdate() }
 
-      FlightSql.DoPutUpdateResult.newBuilder()
-        .setRecordCount(updatedCount.toLong())
-        .build()
-        .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
-      listener.onCompleted()
+        FlightSql.DoPutUpdateResult.newBuilder()
+          .setRecordCount(updatedCount.toLong())
+          .build()
+          .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
+        listener.onCompleted()
+      }
     }
   }
 
@@ -106,7 +108,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     request: FlightSql.ActionCreatePreparedStatementRequest,
     callContext: CallContext,
     listener: StreamListener<Result>
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: createPreparedStatement({})", request)
 
     database.prepare(request.query).use { statement ->
@@ -133,38 +135,40 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     log.info("Server: acceptPutPreparedStatementQuery({})", command)
 
     return Runnable {
-      val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
+      ErrorHandler.wrap(listener) {
+        val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
 
-      if (!flightStream.next()) {
-        if (handle.parameterCount != 0) {
+        if (!flightStream.next()) {
+          if (handle.parameterCount != 0) {
+            listener.onError(
+              CallStatus.INTERNAL
+                .withDescription("Expected ${handle.parameterCount} params, got none")
+                .toRuntimeException()
+            )
+          } else {
+            listener.onCompleted()
+          }
+          return@wrap
+        }
+
+        val root = flightStream.root
+        if (root.rowCount != 1) {
           listener.onError(
             CallStatus.INTERNAL
-              .withDescription("Expected ${handle.parameterCount} params, got none")
+              .withDescription("Only a single set of parameters was expected")
               .toRuntimeException()
           )
+          return@wrap
         }
+
+        val newHandle = handle.copy(parameterValues = root.toParamList())
+
+        FlightSql.DoPutPreparedStatementResult.newBuilder()
+          .setPreparedStatementHandle(newHandle.toProto())
+          .build()
+          .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
         listener.onCompleted()
-        return@Runnable
       }
-
-      val root = flightStream.root
-      if (root.rowCount != 1) {
-        listener.onError(
-          CallStatus.INTERNAL
-            .withDescription("Only a single set of parameters was expected")
-            .toRuntimeException()
-        )
-        listener.onCompleted()
-        return@Runnable
-      }
-
-      val newHandle = handle.copy(parameterValues = root.toParamList())
-
-      FlightSql.DoPutPreparedStatementResult.newBuilder()
-        .setPreparedStatementHandle(newHandle.toProto())
-        .build()
-        .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
-      listener.onCompleted()
     }
   }
 
@@ -172,7 +176,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandPreparedStatementQuery,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoPreparedStatement({})", command)
 
     val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
@@ -181,7 +185,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
       val ticket = FlightSql.CommandPreparedStatementQuery.newBuilder()
         .setPreparedStatementHandle(handle.toProto())
         .build()
-      return createFlightInfo(schema, descriptor, ticket)
+      createFlightInfo(schema, descriptor, ticket)
     }
   }
 
@@ -189,7 +193,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandPreparedStatementQuery,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamPreparedStatement({})", command)
 
     val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
@@ -211,19 +215,21 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     log.info("Server: acceptPutPreparedStatementUpdate({})", command)
 
     return Runnable {
-      val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
-      val updatedCount = database.prepare(handle.sql).use { statement ->
-        while (flightStream.next()) {
-          statement.setParameters(flightStream.root.toParamList()).addBatch()
-        }
-        statement.executeBatch()
-      }.sum()
+      ErrorHandler.wrap(listener) {
+        val handle = PreparedStatementHandle.fromProto(command.preparedStatementHandle)
+        val updatedCount = database.prepare(handle.sql).use { statement ->
+          while (flightStream.next()) {
+            statement.setParameters(flightStream.root.toParamList()).addBatch()
+          }
+          statement.executeBatch()
+        }.sum()
 
-      FlightSql.DoPutUpdateResult.newBuilder()
-        .setRecordCount(updatedCount.toLong())
-        .build()
-        .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
-      listener.onCompleted()
+        FlightSql.DoPutUpdateResult.newBuilder()
+          .setRecordCount(updatedCount.toLong())
+          .build()
+          .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
+        listener.onCompleted()
+      }
     }
   }
 
@@ -231,7 +237,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     request: FlightSql.ActionClosePreparedStatementRequest,
     callContext: CallContext,
     listener: StreamListener<Result>
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: closePreparedStatement({})", request)
 
     // nothing to do, since all statements are stateless
@@ -244,16 +250,16 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetSqlInfo,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoSqlInfo({})", command)
-    return createFlightInfo(Schemas.GET_SQL_INFO_SCHEMA, descriptor, command)
+    createFlightInfo(Schemas.GET_SQL_INFO_SCHEMA, descriptor, command)
   }
 
   override fun getStreamSqlInfo(
     command: FlightSql.CommandGetSqlInfo,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamSqlInfo({})", command)
     sqlInfoBuilder.send(command.infoList, listener)
   }
@@ -264,16 +270,16 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetXdbcTypeInfo,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoTypeInfo({})", command)
-    return createFlightInfo(Schemas.GET_TYPE_INFO_SCHEMA, descriptor, command)
+    createFlightInfo(Schemas.GET_TYPE_INFO_SCHEMA, descriptor, command)
   }
 
   override fun getStreamTypeInfo(
     command: FlightSql.CommandGetXdbcTypeInfo,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamTypeInfo({})", command)
     QueryResult.empty(allocator, Schemas.GET_TYPE_INFO_SCHEMA).send(listener)
   }
@@ -284,15 +290,15 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetCatalogs,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoCatalogs({})", command)
-    return createFlightInfo(Schemas.GET_CATALOGS_SCHEMA, descriptor, command)
+    createFlightInfo(Schemas.GET_CATALOGS_SCHEMA, descriptor, command)
   }
 
   override fun getStreamCatalogs(
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamCatalogs()")
     database.metadata().getCatalogs().use { result ->
       result.send(listener)
@@ -305,16 +311,16 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetDbSchemas,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoSchemas({})", command)
-    return createFlightInfo(Schemas.GET_SCHEMAS_SCHEMA, descriptor, command)
+    createFlightInfo(Schemas.GET_SCHEMAS_SCHEMA, descriptor, command)
   }
 
   override fun getStreamSchemas(
     command: FlightSql.CommandGetDbSchemas,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamSchemas({})", command)
 
     val catalog = if (command.hasCatalog()) command.catalog else null
@@ -331,10 +337,10 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetTables,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoTables({})", command)
 
-    return createFlightInfo(
+    createFlightInfo(
       if (command.includeSchema) Schemas.GET_TABLES_SCHEMA else Schemas.GET_TABLES_SCHEMA_NO_SCHEMA,
       descriptor,
       command
@@ -345,7 +351,7 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetTables,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamTables({})", command)
 
     val catalog = if (command.hasCatalog()) command.catalog else null
@@ -368,15 +374,15 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetTableTypes,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoTableTypes({})", command)
-    return createFlightInfo(Schemas.GET_TABLE_TYPES_SCHEMA, descriptor, command)
+    createFlightInfo(Schemas.GET_TABLE_TYPES_SCHEMA, descriptor, command)
   }
 
   override fun getStreamTableTypes(
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamTableTypes()")
     database.metadata().getTableTypes().use { result ->
       result.send(listener)
@@ -389,16 +395,16 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetPrimaryKeys,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoPrimaryKeys({})", command)
-    return createFlightInfo(Schemas.GET_PRIMARY_KEYS_SCHEMA, descriptor, command)
+    createFlightInfo(Schemas.GET_PRIMARY_KEYS_SCHEMA, descriptor, command)
   }
 
   override fun getStreamPrimaryKeys(
     command: FlightSql.CommandGetPrimaryKeys,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamPrimaryKeys({})", command)
     QueryResult.empty(allocator, Schemas.GET_PRIMARY_KEYS_SCHEMA).send(listener)
   }
@@ -409,16 +415,16 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetExportedKeys,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoExportedKeys({})", command)
-    return createFlightInfo(Schemas.GET_EXPORTED_KEYS_SCHEMA, descriptor, command)
+    createFlightInfo(Schemas.GET_EXPORTED_KEYS_SCHEMA, descriptor, command)
   }
 
   override fun getStreamExportedKeys(
     command: FlightSql.CommandGetExportedKeys,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamExportedKeys({})", command)
     QueryResult.empty(allocator, Schemas.GET_EXPORTED_KEYS_SCHEMA).send(listener)
   }
@@ -429,16 +435,16 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetImportedKeys,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoImportedKeys({})", command)
-    return createFlightInfo(Schemas.GET_IMPORTED_KEYS_SCHEMA, descriptor, command)
+    createFlightInfo(Schemas.GET_IMPORTED_KEYS_SCHEMA, descriptor, command)
   }
 
   override fun getStreamImportedKeys(
     command: FlightSql.CommandGetImportedKeys,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamImportedKeys({})", command)
     QueryResult.empty(allocator, Schemas.GET_IMPORTED_KEYS_SCHEMA).send(listener)
   }
@@ -449,16 +455,16 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     command: FlightSql.CommandGetCrossReference,
     callContext: CallContext,
     descriptor: FlightDescriptor
-  ): FlightInfo {
+  ): FlightInfo = ErrorHandler.wrap {
     log.info("Server: getFlightInfoCrossReference({})", command)
-    return createFlightInfo(Schemas.GET_CROSS_REFERENCE_SCHEMA, descriptor, command)
+    createFlightInfo(Schemas.GET_CROSS_REFERENCE_SCHEMA, descriptor, command)
   }
 
   override fun getStreamCrossReference(
     command: FlightSql.CommandGetCrossReference,
     callContext: CallContext,
     listener: ServerStreamListener
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: getStreamCrossReference({})", command)
     QueryResult.empty(allocator, Schemas.GET_CROSS_REFERENCE_SCHEMA).send(listener)
   }
@@ -469,14 +475,13 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     callContext: CallContext,
     criteria: Criteria,
     listener: StreamListener<FlightInfo>
-  ) {
+  ) = ErrorHandler.wrap(listener) {
     log.info("Server: listFlights()")
     listener.onError(
       CallStatus.UNIMPLEMENTED
         .withDescription("Listing in-flight operations is not supported")
         .toRuntimeException()
     )
-    listener.onCompleted()
   }
 
   override fun close() {

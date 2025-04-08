@@ -16,4 +16,5 @@ server/bin
 data.csv
 data.csv.gz
 database.duckdb
+database.duckdb.wal
 flight-sql-jdbc-driver.jar
