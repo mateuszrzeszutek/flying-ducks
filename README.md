@@ -77,5 +77,4 @@ It uses DuckDB internally to run the queries on an example database file.
 
 # TODO list
 
-- [ ] jdbc driver integration test
-- [ ] adbc driver integration test
+- [ ] jmh perf comparison jdbc vs adbc; just select *

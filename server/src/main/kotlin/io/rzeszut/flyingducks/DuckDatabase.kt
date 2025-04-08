@@ -20,18 +20,17 @@ class DuckDatabase private constructor(private val connection: Connection, priva
 
   companion object {
     fun create(filePath: Path, allocator: BufferAllocator) =
-      DuckDatabase(DriverManager.getConnection("jdbc:duckdb:$filePath"), allocator)
+      createForUri("jdbc:duckdb:$filePath", allocator)
+
+    fun createForUri(uri: String, allocator: BufferAllocator) =
+      DuckDatabase(DriverManager.getConnection(uri), allocator)
   }
 
   fun metadata() = DuckMetadata(this, allocator)
 
-  fun prepare(sql: String): DuckStatement {
-    return DuckStatement(connection.prepareStatement(sql), allocator)
-  }
+  fun prepare(sql: String): DuckStatement = DuckStatement(connection.prepareStatement(sql), allocator)
 
-  override fun close() {
-    connection.close()
-  }
+  override fun close() = connection.close()
 }
 
 class DuckStatement(private val preparedStatement: PreparedStatement, private val allocator: BufferAllocator) :
@@ -81,9 +80,7 @@ class DuckStatement(private val preparedStatement: PreparedStatement, private va
 
   fun parameterMetaData(): ParameterMetaData = preparedStatement.parameterMetaData
 
-  override fun close() {
-    preparedStatement.close()
-  }
+  override fun close() = preparedStatement.close()
 }
 
 class DuckMetadata(private val database: DuckDatabase, private val allocator: BufferAllocator) {

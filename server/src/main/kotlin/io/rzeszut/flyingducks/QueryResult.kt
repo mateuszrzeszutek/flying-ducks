@@ -54,9 +54,7 @@ private data class ArrowReaderResult(val reader: ArrowReader) : QueryResult {
     }
   }
 
-  override fun close() {
-    reader.close()
-  }
+  override fun close() = reader.close()
 }
 
 private data class VectorResult(val root: VectorSchemaRoot) : QueryResult {
@@ -72,7 +70,5 @@ private data class VectorResult(val root: VectorSchemaRoot) : QueryResult {
     consumer.invoke(root)
   }
 
-  override fun close() {
-    root.close()
-  }
+  override fun close() = root.close()
 }

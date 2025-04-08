@@ -11,12 +11,14 @@ repositories {
 
 dependencies {
   implementation(libs.arrow.c.data)
-  implementation(libs.arrow.flight.sql)
+  implementation(libs.flight.sql)
   implementation(libs.duckdb)
   implementation(libs.protobuf)
   implementation(libs.slf4j.api)
   runtimeOnly(libs.slf4j.simple)
 
+  testImplementation(libs.flight.sql.adbc)
+  testImplementation(libs.flight.sql.jdbc)
   testImplementation(libs.junit.jupiter)
   testImplementation(kotlin("test"))
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -42,4 +44,5 @@ application {
 
 tasks.named<Test>("test") {
   useJUnitPlatform()
+  jvmArgs("--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED")
 }

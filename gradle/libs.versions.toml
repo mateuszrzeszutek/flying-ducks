@@ -2,6 +2,7 @@
 # https://docs.gradle.org/current/userguide/platforms.html#sub::toml-dependencies-format
 
 [versions]
+adbc = "0.17.0"
 arrow = "18.2.0"
 duckdb = "1.2.1"
 junit-jupiter = "5.11.3"
@@ -10,8 +11,10 @@ slf4j = "2.0.17"
 
 [libraries]
 arrow-c-data = { module = "org.apache.arrow:arrow-c-data", version.ref = "arrow" }
-arrow-flight-sql = { module = "org.apache.arrow:flight-sql", version.ref = "arrow" }
 duckdb = { module = "org.duckdb:duckdb_jdbc", version.ref = "duckdb" }
+flight-sql = { module = "org.apache.arrow:flight-sql", version.ref = "arrow" }
+flight-sql-adbc = { module = "org.apache.arrow.adbc:adbc-driver-flight-sql", version.ref = "adbc" }
+flight-sql-jdbc = { module = "org.apache.arrow:flight-sql-jdbc-driver", version.ref = "arrow" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 protobuf = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }

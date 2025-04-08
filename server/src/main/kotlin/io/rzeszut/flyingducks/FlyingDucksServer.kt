@@ -361,7 +361,9 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
 
     database.metadata().getTables(catalog, schemaNamePattern, tableNamePattern, tableTypes).use { result ->
       if (command.includeSchema) {
-        database.metadata().addTableSchema(result).send(listener)
+        database.metadata().addTableSchema(result).use {
+          it.send(listener)
+        }
       } else {
         result.send(listener)
       }
