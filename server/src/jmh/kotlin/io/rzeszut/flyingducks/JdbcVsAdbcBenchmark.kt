@@ -28,8 +28,8 @@ open class JdbcVsAdbcBenchmark {
 
     val location: Location = Location.forGrpcInsecure("0.0.0.0", findPort())
     val allocator = RootAllocator()
-    private val serverAllocator = allocator.newChildAllocator("server", 0, 1024 * 1024 * 500 /* 500 MiB */)
-    private val duckAllocator = allocator.newChildAllocator("duckdb", 0, 1024 * 1024 * 500 /* 500 MiB */)
+    private val serverAllocator = allocator.newChildAllocator("server", 0, allocatorSize)
+    private val duckAllocator = allocator.newChildAllocator("duckdb", 0, allocatorSize)
 
     private val databaseFilePath = System.getProperty("jmh.databaseFile")
     private val database = DuckDatabase.createForUri("jdbc:duckdb:${databaseFilePath}", duckAllocator)
@@ -43,15 +43,22 @@ open class JdbcVsAdbcBenchmark {
 
     @TearDown
     fun tearDown() {
-      server.close()
-      database.close()
-      allocator.close()
+      for (c in listOf(server, database, allocator)) {
+        try {
+          c.close()
+        } catch (e: Throwable) {
+          // don't throw from this method, just close silently
+          e.printStackTrace()
+        }
+      }
     }
 
     fun port() = location.uri.port
   }
 
   companion object {
+    val allocatorSize: Long = 1024 * 1024 * 1024 /* 1 GiB */;
+
     val query = """
       select trip_id,
              trip_type,
@@ -69,7 +76,7 @@ open class JdbcVsAdbcBenchmark {
   @Benchmark
   @Threads(1)
   fun adbc(database: Database, blackhole: Blackhole) {
-    FlightSqlDriver(database.allocator.newChildAllocator("adbc", 0, 1024 * 1024 * 500 /* 500 MiB */))
+    FlightSqlDriver(database.allocator.newChildAllocator("adbc", 0, allocatorSize))
       .open(mapOf(AdbcDriver.PARAM_URI.key to database.location.uri.toString())).use { db ->
         db.connect().use { conn ->
           conn.createStatement().use { statement ->
