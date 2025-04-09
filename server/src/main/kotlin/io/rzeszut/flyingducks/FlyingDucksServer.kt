@@ -20,20 +20,6 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
     private val log = LoggerFactory.getLogger(FlyingDucksServer::class.java)
   }
 
-  private val sqlInfoBuilder = SqlInfoBuilder()
-    .withFlightSqlServerName("Flying Duck")
-    .withFlightSqlServerVersion("0.0.1")
-    .withFlightSqlServerCancel(false)
-    .withFlightSqlServerSql(true)
-    .withFlightSqlServerSubstrait(true)
-    .withFlightSqlServerTransaction(FlightSql.SqlSupportedTransaction.SQL_SUPPORTED_TRANSACTION_NONE)
-    .withSqlCatalogAtStart(false)
-    .withSqlIdentifierCase(FlightSql.SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_CASE_INSENSITIVE)
-    .withSqlIdentifierQuoteChar("\"")
-    .withSqlQuotedIdentifierCase(FlightSql.SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_CASE_INSENSITIVE)
-    .withSqlSearchStringEscape("\\")
-    .withSqlTransactionsSupported(false)
-
   // STATEMENT
 
   override fun getFlightInfoStatement(
@@ -257,6 +243,20 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
   }
 
   // SQL INFO
+
+  private val sqlInfoBuilder = SqlInfoBuilder()
+    .withFlightSqlServerName("Flying Duck")
+    .withFlightSqlServerVersion("0.0.1")
+    .withFlightSqlServerCancel(false)
+    .withFlightSqlServerSql(true)
+    .withFlightSqlServerSubstrait(true)
+    .withFlightSqlServerTransaction(FlightSql.SqlSupportedTransaction.SQL_SUPPORTED_TRANSACTION_NONE)
+    .withSqlCatalogAtStart(false)
+    .withSqlIdentifierCase(FlightSql.SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_CASE_INSENSITIVE)
+    .withSqlIdentifierQuoteChar("\"")
+    .withSqlQuotedIdentifierCase(FlightSql.SqlSupportedCaseSensitivity.SQL_CASE_SENSITIVITY_CASE_INSENSITIVE)
+    .withSqlSearchStringEscape("\\")
+    .withSqlTransactionsSupported(false)
 
   override fun getFlightInfoSqlInfo(
     command: FlightSql.CommandGetSqlInfo,

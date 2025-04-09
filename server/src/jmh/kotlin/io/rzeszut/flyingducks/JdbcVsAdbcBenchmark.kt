@@ -60,7 +60,7 @@ open class JdbcVsAdbcBenchmark {
     val allocatorSize: Long = 1024 * 1024 * 1024 /* 1 GiB */;
 
     val query = """
-      select trip_id,
+      SELECT trip_id,
              trip_type,
              pickup,
              dropoff,
@@ -69,7 +69,7 @@ open class JdbcVsAdbcBenchmark {
              trip_distance,
              total_amount,
              passenger_count
-        from trips;
+        FROM trips;
       """.trimIndent()
   }
 
