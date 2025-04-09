@@ -36,10 +36,3 @@ fun Message.serialized(allocator: BufferAllocator): ArrowBuf {
   buffer.writeBytes(toByteArray())
   return buffer
 }
-
-fun Message.serialized(allocator: BufferAllocator, block: (ArrowBuf) -> Unit) {
-  allocator.buffer(serializedSize.toLong()).use { buffer ->
-    buffer.writeBytes(toByteArray())
-    block.invoke(buffer)
-  }
-}
