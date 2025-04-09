@@ -43,9 +43,9 @@ class DuckStatement(private val preparedStatement: PreparedStatement, private va
     } else {
       // Intellij executes DML operations using getFlightInfo/doGet, this prevents errors being thrown during demo
       val updates = IntVector("updates", allocator)
-      updates.setSafe(0, preparedStatement.updateCount)
       val root = VectorSchemaRoot.of(updates)
       root.rowCount = 1
+      updates.setSafe(0, preparedStatement.updateCount)
       QueryResult.forVector(root)
     }
   }

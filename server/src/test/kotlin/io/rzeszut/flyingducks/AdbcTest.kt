@@ -109,7 +109,6 @@ class AdbcTest {
     }
 
     // then
-    println(foundTables)
     assertContentEquals(
       listOf(
         Table(

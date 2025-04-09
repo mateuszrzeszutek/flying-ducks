@@ -93,10 +93,14 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
       ErrorHandler.wrap(listener) {
         val updatedCount = database.prepare(command.query).use { it.executeUpdate() }
 
-        FlightSql.DoPutUpdateResult.newBuilder()
-          .setRecordCount(updatedCount.toLong())
-          .build()
-          .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
+        listener.onNext(
+          PutResult.metadata(
+            FlightSql.DoPutUpdateResult.newBuilder()
+              .setRecordCount(updatedCount.toLong())
+              .build()
+              .serialized(allocator)
+          )
+        )
         listener.onCompleted()
       }
     }
@@ -163,10 +167,14 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
 
         val newHandle = handle.copy(parameterValues = root.toParamList())
 
-        FlightSql.DoPutPreparedStatementResult.newBuilder()
-          .setPreparedStatementHandle(newHandle.toProto())
-          .build()
-          .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
+        listener.onNext(
+          PutResult.metadata(
+            FlightSql.DoPutPreparedStatementResult.newBuilder()
+              .setPreparedStatementHandle(newHandle.toProto())
+              .build()
+              .serialized(allocator)
+          )
+        )
         listener.onCompleted()
       }
     }
@@ -224,10 +232,14 @@ class FlyingDucksServer(private val allocator: BufferAllocator, private val data
           statement.executeBatch()
         }.sum()
 
-        FlightSql.DoPutUpdateResult.newBuilder()
-          .setRecordCount(updatedCount.toLong())
-          .build()
-          .serialized(allocator) { listener.onNext(PutResult.metadata(it)) }
+        listener.onNext(
+          PutResult.metadata(
+            FlightSql.DoPutUpdateResult.newBuilder()
+              .setRecordCount(updatedCount.toLong())
+              .build()
+              .serialized(allocator)
+          )
+        )
         listener.onCompleted()
       }
     }

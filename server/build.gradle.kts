@@ -3,6 +3,7 @@ plugins {
   application
 
   id("com.google.protobuf") version "0.9.5"
+  id("me.champeau.jmh") version "0.7.2"
 }
 
 repositories {
@@ -22,6 +23,9 @@ dependencies {
   testImplementation(libs.junit.jupiter)
   testImplementation(kotlin("test"))
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+  jmh(libs.flight.sql.adbc)
+  jmh(libs.flight.sql.jdbc)
 }
 
 kotlin {
@@ -45,4 +49,14 @@ application {
 tasks.named<Test>("test") {
   useJUnitPlatform()
   jvmArgs("--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED")
+}
+
+jmh {
+  val databaseFile = project.rootDir.resolve("database.duckdb")
+
+  jvmArgs.add("-Djmh.databaseFile=${databaseFile.absolutePath}")
+  jvmArgs.add("--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED")
+  jvmArgs.add("-Xmx2g")
+
+  profilers.add("gc")
 }

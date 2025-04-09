@@ -75,6 +75,12 @@ It uses DuckDB internally to run the queries on an example database file.
    - Dialect: `PostgreSQL (Compatible)`
 4. Click `Save` -- you should be able to inspect the database schema and query it now.
 
-# TODO list
+## Benchmarks
 
-- [ ] jmh perf comparison jdbc vs adbc; just select *
+Run
+
+```shell
+./gradlew jmh
+```
+
+to execute the benchmarks; currently there is one comparing ADBC to JDBC when downloading large amounts of data.

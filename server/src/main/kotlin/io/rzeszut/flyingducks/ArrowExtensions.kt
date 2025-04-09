@@ -31,6 +31,12 @@ fun VectorSchemaRoot.debugDump() {
   }
 }
 
+fun Message.serialized(allocator: BufferAllocator): ArrowBuf {
+  val buffer = allocator.buffer(serializedSize.toLong())
+  buffer.writeBytes(toByteArray())
+  return buffer
+}
+
 fun Message.serialized(allocator: BufferAllocator, block: (ArrowBuf) -> Unit) {
   allocator.buffer(serializedSize.toLong()).use { buffer ->
     buffer.writeBytes(toByteArray())
