@@ -53,6 +53,9 @@ tasks.named<Test>("test") {
 
 jmh {
   val databaseFile = project.rootDir.resolve("database.duckdb")
+  if (!databaseFile.exists()) {
+    throw GradleException("Database file ${databaseFile.absolutePath} does not exist; make sure to run the setup instructions first")
+  }
 
   jvmArgs.add("-Djmh.databaseFile=${databaseFile.absolutePath}")
   jvmArgs.add("--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED")

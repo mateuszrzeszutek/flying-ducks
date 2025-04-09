@@ -61,8 +61,8 @@ It uses DuckDB internally to run the queries on an example database file.
    In the `Class` combo box select the `org.apache.arrow.driver.jdbc.ArrowFlightJdbcDriver`.
    Save the newly created driver.
 2. Using the plus sign again, create a new `Data Source` choosing the driver you just saved. Set the following options:
-   - Authentication: No auth
-   - URL: `jdbc:arrow-flight-sql://localhost:7777?useEncryption=false`
+    - Authentication: No auth
+    - URL: `jdbc:arrow-flight-sql://localhost:7777?useEncryption=false`
 3. Save the data source -- you should be able to inspect the database schema and query it now.
 
 ### VSCode/VSCodium
@@ -70,13 +70,15 @@ It uses DuckDB internally to run the queries on an example database file.
 1. Install the `Database Client` and `Database Client JDBC` extensions.
 2. In the `Database` tab, click `Add Connection`
 3. Enter the following information:
-   - JDBC URL: `jdbc:arrow-flight-sql://localhost:7777?useEncryption=false`
-   - Driver Path: `<path-to-the-flying-ducks-project>/flight-sql-jdbc-driver.jar`
-   - Dialect: `PostgreSQL (Compatible)`
+    - JDBC URL: `jdbc:arrow-flight-sql://localhost:7777?useEncryption=false`
+    - Driver Path: `<path-to-the-flying-ducks-project>/flight-sql-jdbc-driver.jar`
+    - Dialect: `PostgreSQL (Compatible)`
 4. Click `Save` -- you should be able to inspect the database schema and query it now.
 
 ## Benchmarks
 
+Benchmarks require the test database to be set up; make sure to go through
+the [database setup](#prepare-the-test-database) first.
 Run
 
 ```shell
